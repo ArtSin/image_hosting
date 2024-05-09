@@ -1,0 +1,150 @@
+* {
+	box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: dark) {
+	* {
+		color-scheme: dark;
+	}
+}
+
+body {
+	width: 100%;
+	max-width: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+nav {
+	width: 100%;
+}
+
+nav>ul {
+	display: flex;
+	flex-wrap: wrap;
+	list-style-type: none;
+	margin: 0;
+	padding: 0;
+	background-color: var(--background-alt);
+}
+
+nav>ul>li>a {
+	display: block;
+	color: var(--text-main);
+	text-align: center;
+	padding: 14px 16px;
+	text-decoration: none;
+}
+
+nav>ul>li>a.active {
+	background-color: var(--background-body);
+}
+
+nav>ul>li>a:hover {
+	text-decoration: none;
+	background-color: var(--focus);
+}
+
+@media (min-width: 450px) {
+	nav>ul>li.end {
+		margin-left: auto;
+	}
+}
+
+@media (max-width: 450px) {
+	nav>ul {
+		flex-direction: column;
+	}
+}
+
+#dialog {
+	position: absolute;
+	z-index: 1;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+}
+
+#dialog>form {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	padding: 12px 24px;
+	background-color: var(--background);
+	border: 1px solid var(--border);
+}
+
+#dialog>form>h3 {
+	margin-top: 12px;
+}
+
+#dialog>form>menu {
+	display: flex;
+	justify-content: end;
+}
+
+main {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+}
+
+form {
+	display: flex;
+	flex-direction: column;
+}
+
+form>div.form_elem {
+	display: flex;
+	align-items: center;
+}
+
+form>div.form_elem>label {
+	margin-right: 6px;
+}
+
+article.image {
+	margin: 6px;
+	padding: 0 10px;
+	border: 1px solid var(--focus);
+	border-radius: 6px;
+	overflow: auto;
+	text-align: center;
+}
+
+@media (min-width: 900px) {
+	article.image {
+		flex: 45%;
+	}
+}
+
+@media (min-width: 1350px) {
+	article.image {
+		flex: 30%;
+	}
+}
+
+article.image>h3 {
+	margin-top: 12px;
+	text-align: center;
+}
+
+article.image>div {
+	display: flex;
+	flex-direction: row;
+	justify-content: space-between;
+	align-items: baseline;
+}
+
+article.image>div>p>button {
+	margin: 6px;
+	padding: 10px;
+}
+
+article.image>div>p>button.voted {
+	color: var(--highlight);
+}
