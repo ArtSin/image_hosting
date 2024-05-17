@@ -8,6 +8,9 @@ pkg
 
 Cargo.lock
 
+.env
+storage/
+
 # node e2e test tools and outputs
 node_modules/
 test-results/
