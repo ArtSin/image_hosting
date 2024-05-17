@@ -7,17 +7,13 @@ use axum_extra::extract::CookieJar;
 use leptos_axum::extract;
 
 use crate::{
-    components::image::ImageComp,
-    i18n::*,
-    image::Image,
-    image_votes::ImageVotes,
-    user::{AuthState, User},
+    components::image::ImageComp, i18n::*, image::Image, image_votes::ImageVotes, user::User,
 };
 
 #[cfg(feature = "ssr")]
 use crate::{
     db::image::get_image_with_authors_and_votes_by_id,
-    user::decode_session_token,
+    user::{decode_session_token, AuthState},
     util::{get_lang, get_locale},
 };
 

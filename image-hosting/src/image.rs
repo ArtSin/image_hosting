@@ -1,15 +1,15 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-pub const IMAGE_EXTENSIONS: [&'static str; 5] = ["jpg", "jpeg", "png", "gif", "webp"];
-pub const IMAGE_MIME: [&'static str; 5] = [
+pub const IMAGE_EXTENSIONS: [&str; 5] = ["jpg", "jpeg", "png", "gif", "webp"];
+pub const IMAGE_MIME: [&str; 5] = [
     "image/jpeg",
     "image/jpeg",
     "image/png",
     "image/gif",
     "image/webp",
 ];
-pub const IMAGE_ACCEPT_EXT_MIME: &'static str =
+pub const IMAGE_ACCEPT_EXT_MIME: &str =
     ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

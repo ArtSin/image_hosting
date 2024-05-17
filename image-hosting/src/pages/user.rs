@@ -7,17 +7,13 @@ use axum_extra::extract::CookieJar;
 #[cfg(feature = "ssr")]
 use leptos_axum::extract;
 
-use crate::{
-    components::images::{Images, IMAGES_PER_PAGE},
-    i18n::*,
-    image::Image,
-    image_votes::ImageVotes,
-    user::User,
-};
+use crate::{components::images::Images, image::Image, image_votes::ImageVotes, user::User};
 
 #[cfg(feature = "ssr")]
 use crate::{
+    components::images::IMAGES_PER_PAGE,
     db::image::get_all_images_with_authors_and_votes_by_author,
+    i18n::*,
     user::{decode_session_token, AuthState},
     util::{get_lang, get_locale},
 };
@@ -41,8 +37,7 @@ pub fn User() -> impl IntoView {
                 .transpose()
                 .ok()
                 .flatten()
-                .map(|x| DateTime::<Utc>::from_timestamp_micros(x))
-                .flatten(),
+                .and_then(DateTime::<Utc>::from_timestamp_micros),
         )
     };
     let images = create_blocking_resource(id_and_last_timestamp, move |(id, t)| async move {

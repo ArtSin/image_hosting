@@ -13,14 +13,13 @@ use crate::{
     i18n::*,
     pages::register::{PASSWORD_MAX_LEN, PASSWORD_MIN_LEN, USER_NAME_MAX_LEN, USER_NAME_MIN_LEN},
     user::{AuthState, User},
-    util::{get_lang, get_locale},
 };
 
 #[cfg(feature = "ssr")]
 use crate::{
     db::user::get_user_with_password_hash_by_name,
     user::{create_session_token, decode_session_token},
-    util::use_cookie_jar,
+    util::{get_lang, get_locale, use_cookie_jar},
 };
 
 #[component]

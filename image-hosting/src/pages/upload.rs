@@ -10,16 +10,17 @@ use leptos_axum::{extract, redirect};
 use crate::{
     components::status_dialog::{StatusDialog, StatusDialogState},
     i18n::*,
-    image::{Image, IMAGE_ACCEPT_EXT_MIME},
+    image::IMAGE_ACCEPT_EXT_MIME,
     user::AuthState,
-    util::{get_lang, get_locale},
 };
 
 #[cfg(feature = "ssr")]
 use crate::{
     db::image::{delete_image, insert_image},
+    image::Image,
     storage::{get_image_format, get_image_path, store_image},
     user::decode_session_token,
+    util::{get_lang, get_locale},
 };
 
 const TITLE_MIN_LEN: usize = 4;

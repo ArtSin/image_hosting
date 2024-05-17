@@ -12,14 +12,13 @@ use crate::{
     components::status_dialog::{StatusDialog, StatusDialogState},
     i18n::*,
     user::{AuthState, User},
-    util::{get_lang, get_locale},
 };
 
 #[cfg(feature = "ssr")]
 use crate::{
     db::user::{get_user_id_by_name, insert_user},
     user::{create_session_token, decode_session_token},
-    util::use_cookie_jar,
+    util::{get_lang, get_locale, use_cookie_jar},
 };
 
 pub(super) const USER_NAME_MIN_LEN: usize = 4;

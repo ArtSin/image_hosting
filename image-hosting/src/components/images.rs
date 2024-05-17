@@ -7,10 +7,10 @@ use crate::{
 
 pub const IMAGES_PER_PAGE: i64 = 6;
 
+pub type ImagesData = (Vec<(Image, User, ImageVotes)>, bool);
+
 #[component]
-pub fn Images<T>(
-    images: Resource<T, Result<(Vec<(Image, User, ImageVotes)>, bool), ServerFnError<String>>>,
-) -> impl IntoView
+pub fn Images<T>(images: Resource<T, Result<ImagesData, ServerFnError<String>>>) -> impl IntoView
 where
     T: 'static + Clone,
 {
