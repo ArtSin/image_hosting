@@ -43,9 +43,24 @@ pub fn User() -> impl IntoView {
     let images = create_blocking_resource(id_and_last_timestamp, move |(id, t)| async move {
         get_all_images_by_author(id, t).await
     });
+    let query_str = move || {
+        format!(
+            "?last={}",
+            images
+                .get()
+                .unwrap()
+                .unwrap()
+                .0
+                .last()
+                .unwrap()
+                .0
+                .timestamp
+                .timestamp_micros()
+        )
+    };
 
     view! {
-        <Images images=images />
+        <Images images=images query_str=query_str />
     }
 }
 

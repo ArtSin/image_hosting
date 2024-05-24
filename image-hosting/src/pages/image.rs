@@ -50,7 +50,7 @@ pub fn Image() -> impl IntoView {
                     {move || {
                         let x = image.get().unwrap().unwrap();
                         view! {
-                            <ImageComp image={x.0} author={x.1} image_votes={x.2} />
+                            <ImageComp image={x.0} author={x.1} image_votes={x.2} thumbnail=false />
                         }
                     }}
                 </main>

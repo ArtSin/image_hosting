@@ -10,9 +10,13 @@ pub const IMAGES_PER_PAGE: i64 = 6;
 pub type ImagesData = (Vec<(Image, User, ImageVotes)>, bool);
 
 #[component]
-pub fn Images<T>(images: Resource<T, Result<ImagesData, ServerFnError<String>>>) -> impl IntoView
+pub fn Images<T, F>(
+    images: Resource<T, Result<ImagesData, ServerFnError<String>>>,
+    query_str: F,
+) -> impl IntoView
 where
     T: 'static + Clone,
+    F: Fn() -> String + Copy + 'static,
 {
     let i18n = use_i18n();
 
@@ -38,16 +42,15 @@ where
                             view! {
                                 <For each=move || images().0 key=|x| x.0.id children=move |x| {
                                     view! {
-                                        <ImageComp image={x.0} author={x.1} image_votes={x.2} />
+                                        <ImageComp image={x.0} author={x.1} image_votes={x.2} thumbnail=true />
                                     }
                                 } />
                                 {move || {
                                     if images().1 {
                                         view! {}.into_view()
                                     } else {
-                                        let link = format!("?last={}", images().0.last().unwrap().0.timestamp.timestamp_micros());
                                         view! {
-                                            <A class="next_page" href={link}><button>"⟶"</button></A>
+                                            <A class="next_page" href={query_str()}><button>"⟶"</button></A>
                                         }.into_view()
                                     }
                                 }}

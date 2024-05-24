@@ -36,9 +36,24 @@ pub fn Index() -> impl IntoView {
             last_timestamp,
             move |t| async move { get_all_images(t).await },
         );
+    let query_str = move || {
+        format!(
+            "?last={}",
+            images
+                .get()
+                .unwrap()
+                .unwrap()
+                .0
+                .last()
+                .unwrap()
+                .0
+                .timestamp
+                .timestamp_micros()
+        )
+    };
 
     view! {
-        <Images images=images />
+        <Images images=images query_str=query_str />
     }
 }
 

@@ -163,3 +163,16 @@ a.next_page>button {
 	width: 100%;
 	margin: 0;
 }
+
+form.search {
+	flex-direction: row;
+	margin: 12px;
+}
+
+form.search>input {
+	flex: 100%;
+}
+
+form.search>button {
+	margin-right: 0;
+}

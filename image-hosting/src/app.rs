@@ -8,7 +8,7 @@ use crate::{
     i18n::*,
     pages::{
         image::Image, index::Index, login::LogIn, logout::LogOut, register::Register,
-        upload::Upload, user::User,
+        search::Search, upload::Upload, user::User,
     },
     user::{self, get_auth_state},
     util::{get_lang, get_locale},
@@ -61,11 +61,12 @@ pub fn App() -> impl IntoView {
                 <NavTabs />
                 <Routes>
                     <Route path="" view=Index ssr=SsrMode::Async />
+                    <Route path="search" view=Search ssr=SsrMode::Async />
+                    <Route path="upload" view=Upload ssr=SsrMode::Async />
                     <Route path="login" view=LogIn ssr=SsrMode::Async />
                     <Route path="register" view=Register ssr=SsrMode::Async />
                     <Route path="user/:id" view=User ssr=SsrMode::Async />
                     <Route path="logout" view=LogOut ssr=SsrMode::Async />
-                    <Route path="upload" view=Upload ssr=SsrMode::Async />
                     <Route path="image/:id" view=Image ssr=SsrMode::Async />
                 </Routes>
             </Suspense>

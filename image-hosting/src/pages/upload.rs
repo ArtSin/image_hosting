@@ -3,7 +3,14 @@ use server_fn::codec::{MultipartData, MultipartFormData};
 use web_sys::FormData;
 
 #[cfg(feature = "ssr")]
+use amqprs::{channel::BasicPublishArguments, BasicProperties};
+#[cfg(feature = "ssr")]
 pub use axum_extra::extract::CookieJar;
+#[cfg(feature = "ssr")]
+use common::{
+    storage::{get_image_format, get_image_path, store_image},
+    OnUploadMessage, WorkerMessage,
+};
 #[cfg(feature = "ssr")]
 use leptos_axum::{extract, redirect};
 
@@ -17,8 +24,7 @@ use crate::{
 #[cfg(feature = "ssr")]
 use crate::{
     db::image::{delete_image, insert_image},
-    image::Image,
-    storage::{get_image_format, get_image_path, store_image},
+    image::{Image, IMAGE_EXTENSIONS},
     user::decode_session_token,
     util::{get_lang, get_locale},
 };
@@ -141,7 +147,7 @@ pub async fn upload_image(data: MultipartData) -> Result<(), ServerFnError<Strin
         return Err(td!(locale, title_too_long)().to_owned().into());
     }
 
-    let format = get_image_format(&image_bytes)?;
+    let format = get_image_format(&image_bytes, &IMAGE_EXTENSIONS)?;
 
     let mut image_db = Image {
         format: format.to_owned(),
@@ -154,11 +160,27 @@ pub async fn upload_image(data: MultipartData) -> Result<(), ServerFnError<Strin
         .await
         .map_err(|_| td!(locale, db_error)().to_owned())?;
 
-    let path = get_image_path(image_db.id, format);
+    let path = get_image_path(image_db.id, format, false);
     if let e @ Err(_) = store_image(path, image_bytes).await {
         let _ = delete_image(image_db.id).await;
         e?;
     }
+
+    let body = serde_json::to_vec(&WorkerMessage::OnUpload(OnUploadMessage {
+        id: image_db.id,
+        format: image_db.format,
+        title: image_db.title,
+    }))
+    .unwrap();
+    let mut args = BasicPublishArguments::default();
+    args.routing_key(common::RABBITMQ_QUEUE_NAME.to_owned());
+    crate::RABBITMQ_CHANNEL
+        .get()
+        .unwrap()
+        .basic_publish(BasicProperties::default(), body, args)
+        .await
+        .map_err(|_| td!(locale, db_error)().to_owned())?;
+
     redirect("/");
     Ok(())
 }

@@ -1,5 +1,7 @@
 #![cfg(feature = "ssr")]
 
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 
 use crate::{image::Image, image_votes::ImageVotes, user::User};
@@ -122,6 +124,29 @@ pub async fn get_all_images_with_authors_and_votes_by_author(
             v.pop();
         }
         (v, last_page)
+    })
+}
+
+pub async fn get_images_with_authors_and_votes_by_ids(
+    curr_user_id: i64,
+    ids: Vec<i64>,
+) -> Result<Vec<(Image, User, ImageVotes)>, sqlx::Error> {
+    let db = crate::DB_CONN.get().unwrap();
+    get_images_with_authors_and_votes!(
+        curr_user_id,
+        r#"where i."id" in (select unnest($2::bigint[]))"#,
+        "",
+        &ids
+    )
+    .fetch_all(db)
+    .await
+    .map(|res| {
+        let hm: HashMap<_, _> = res
+            .into_iter()
+            .map(|x| record_to_images_with_authors_and_votes!(x))
+            .map(|x| (x.0.id, x))
+            .collect();
+        ids.into_iter().map(|id| hm[&id].clone()).collect()
     })
 }
 

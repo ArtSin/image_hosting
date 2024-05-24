@@ -1,11 +1,28 @@
 #[cfg(feature = "ssr")]
+use amqprs::{channel::Channel, consumer::AsyncConsumer, BasicProperties, Deliver};
+#[cfg(feature = "ssr")]
+use common::SearchResponse;
+#[cfg(feature = "ssr")]
+use image_hosting::RABBITMQ_RESPONSES;
+#[cfg(feature = "ssr")]
+use tracing_unwrap::{OptionExt, ResultExt};
+
+#[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
+    use amqprs::{
+        callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
+        channel::{BasicConsumeArguments, QueueDeclareArguments},
+        connection::{Connection, OpenConnectionArguments},
+    };
     use axum::Router;
+    use common::storage::create_folders;
     use image_hosting::fileserv::file_and_error_handler;
     use image_hosting::{app::*, components::image::get_image_file};
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
+    use tracing::level_filters::LevelFilter;
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
     // Setting get_configuration(None) means we'll be using cargo-leptos's env values
     // For deployment these variables are:
@@ -17,12 +34,37 @@ async fn main() {
     let addr = leptos_options.site_addr;
     let routes = generate_route_list(App);
 
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::DEBUG.into())
+                .from_env_lossy(),
+        )
+        .init();
+
     dotenvy::dotenv().ok();
     let db_url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable is not set");
+        std::env::var("DATABASE_URL").expect_or_log("DATABASE_URL environment variable is not set");
     image_hosting::APP_SECRET
-        .set(std::env::var("APP_SECRET").expect("APP_SECRET environment variable is not set"))
-        .expect("Can't set app secret");
+        .set(
+            std::env::var("APP_SECRET").expect_or_log("APP_SECRET environment variable is not set"),
+        )
+        .unwrap();
+    let rabbitmq_host = std::env::var("RABBITMQ_HOST")
+        .expect_or_log("RABBITMQ_HOST environment variable is not set");
+    let rabbitmq_port = std::env::var("RABBITMQ_PORT")
+        .expect_or_log("RABBITMQ_PORT environment variable is not set")
+        .parse()
+        .expect_or_log("Can't parse RABBITMQ_PORT");
+    let rabbitmq_username = std::env::var("RABBITMQ_USERNAME")
+        .expect_or_log("RABBITMQ_USERNAME environment variable is not set");
+    let rabbitmq_password = std::env::var("RABBITMQ_PASSWORD")
+        .expect_or_log("RABBITMQ_PASSWORD environment variable is not set");
+
+    create_folders()
+        .await
+        .expect_or_log("Can't create storage folders");
 
     image_hosting::DB_CONN
         .set(
@@ -30,9 +72,56 @@ async fn main() {
                 .max_connections(image_hosting::MAX_DB_CONNECTIONS)
                 .connect(&db_url)
                 .await
-                .expect("Database connection failed"),
+                .expect_or_log("Database connection failed"),
         )
-        .expect("Can't set database connection");
+        .unwrap();
+
+    let connection = Connection::open(&OpenConnectionArguments::new(
+        &rabbitmq_host,
+        rabbitmq_port,
+        &rabbitmq_username,
+        &rabbitmq_password,
+    ))
+    .await
+    .expect_or_log("Can't connect to RabbitMQ");
+    connection
+        .register_callback(DefaultConnectionCallback)
+        .await
+        .unwrap_or_log();
+
+    let channel = connection.open_channel(None).await.unwrap_or_log();
+    channel
+        .register_callback(DefaultChannelCallback)
+        .await
+        .unwrap_or_log();
+    image_hosting::RABBITMQ_CHANNEL
+        .set(channel)
+        .map_err(|_| ())
+        .unwrap();
+
+    let mut queue_args = QueueDeclareArguments::new("");
+    queue_args.exclusive(true);
+    let (callback_queue_name, _, _) = image_hosting::RABBITMQ_CHANNEL
+        .get()
+        .unwrap()
+        .queue_declare(queue_args)
+        .await
+        .unwrap_or_log()
+        .unwrap_or_log();
+    image_hosting::RABBITMQ_CALLBACK_QUEUE
+        .set(callback_queue_name.clone())
+        .unwrap();
+
+    tokio::spawn(async move {
+        let mut args = BasicConsumeArguments::new(&callback_queue_name, "");
+        args.no_ack = true;
+        image_hosting::RABBITMQ_CHANNEL
+            .get()
+            .unwrap()
+            .basic_consume(Consumer, args)
+            .await
+            .unwrap();
+    });
 
     // build our application with a route
     let app = Router::new()
@@ -49,6 +138,28 @@ async fn main() {
     axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
+}
+
+#[cfg(feature = "ssr")]
+struct Consumer;
+
+#[cfg(feature = "ssr")]
+#[async_trait::async_trait]
+impl AsyncConsumer for Consumer {
+    async fn consume(
+        &mut self,
+        _channel: &Channel,
+        _deliver: Deliver,
+        basic_properties: BasicProperties,
+        content: Vec<u8>,
+    ) {
+        let message: SearchResponse = serde_json::from_slice(&content).unwrap_or_log();
+        if let Some((_, sender)) =
+            RABBITMQ_RESPONSES.remove(basic_properties.correlation_id().unwrap_or_log())
+        {
+            sender.send(message).unwrap_or_log();
+        }
+    }
 }
 
 #[cfg(not(feature = "ssr"))]

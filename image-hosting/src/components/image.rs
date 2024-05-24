@@ -2,21 +2,33 @@ use leptos::*;
 use leptos_router::*;
 
 #[cfg(feature = "ssr")]
-use axum::{extract::Path, http::header, http::StatusCode, response::IntoResponse};
+use axum::{
+    extract::{Path, Query},
+    http::{header, StatusCode},
+    response::IntoResponse,
+};
 #[cfg(feature = "ssr")]
 use chrono::{DateTime, Utc};
+#[cfg(feature = "ssr")]
+use common::storage::{get_image_metadata, get_image_path, load_image};
+use serde::Deserialize;
 
 use crate::{image::Image, image_votes::ImageVotes, user::User};
 
 #[cfg(feature = "ssr")]
-use crate::{
-    image::{IMAGE_EXTENSIONS, IMAGE_MIME},
-    storage::{get_image_metadata, get_image_path, load_image},
-};
+use crate::image::{IMAGE_EXTENSIONS, IMAGE_MIME};
 
 #[component]
-pub fn ImageComp(image: Image, author: User, image_votes: ImageVotes) -> impl IntoView {
-    let img_path = format!("/api/image/{}.{}", image.id, image.format);
+pub fn ImageComp(
+    image: Image,
+    author: User,
+    image_votes: ImageVotes,
+    thumbnail: bool,
+) -> impl IntoView {
+    let img_path = format!(
+        "/api/image/{}.{}?thumbnail={}",
+        image.id, image.format, thumbnail
+    );
     let (rating, set_rating) = create_signal(image_votes.rating);
     let (upvoted, set_upvoted) = create_signal(image_votes.curr_user_upvote == Some(true));
     let (downvoted, set_downvoted) = create_signal(image_votes.curr_user_upvote == Some(true));
@@ -53,9 +65,15 @@ pub fn ImageComp(image: Image, author: User, image_votes: ImageVotes) -> impl In
     }
 }
 
+#[derive(Deserialize)]
+pub struct GetImageFileQuery {
+    pub thumbnail: bool,
+}
+
 #[cfg(feature = "ssr")]
 pub async fn get_image_file(
     Path(file_name): Path<String>,
+    Query(q): Query<GetImageFileQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let dot_pos = file_name
         .find('.')
@@ -69,20 +87,42 @@ pub async fn get_image_file(
         None => return Err((StatusCode::BAD_REQUEST, String::new())),
     };
 
-    let path = get_image_path(id, format);
-    let modified = get_image_metadata(&path)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?
-        .modified()
-        .unwrap();
-    let last_modified = DateTime::<Utc>::from(modified).to_rfc2822();
+    let mut path = None;
+    let mut modified = None;
+    let mut max_age = 31536000;
+    // Try to use thumbnail if it is requested
+    if q.thumbnail {
+        let t_path = get_image_path(id, format, true);
+        let t_modified = get_image_metadata(&t_path)
+            .await
+            .map(|x| x.modified().unwrap());
+        if let Ok(t_modified) = t_modified {
+            path = Some(t_path);
+            modified = Some(t_modified);
+        } else {
+            // If not found, temporarily use full image
+            max_age = 0;
+        }
+    }
 
-    match load_image(path).await {
+    if path.is_none() {
+        path = Some(get_image_path(id, format, false));
+        modified = Some(
+            get_image_metadata(path.as_ref().unwrap())
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?
+                .modified()
+                .unwrap(),
+        );
+    }
+    let last_modified = DateTime::<Utc>::from(modified.unwrap()).to_rfc2822();
+
+    match load_image(path.unwrap()).await {
         Ok(x) => Ok((
             [
                 (header::CONTENT_TYPE, IMAGE_MIME[format_ind].to_owned()),
                 (header::LAST_MODIFIED, last_modified),
-                (header::CACHE_CONTROL, "max-age=31536000".to_owned()),
+                (header::CACHE_CONTROL, format!("max-age={max_age}")),
             ],
             x,
         )),

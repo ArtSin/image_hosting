@@ -9,6 +9,7 @@ pkg
 Cargo.lock
 
 .env
+models/
 storage/
 
 # node e2e test tools and outputs
