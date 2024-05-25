@@ -29,6 +29,7 @@
     "registration_error": "Registration error: ",
     "login_error": "Logging in error: ",
     "logout_error": "Logging out error: ",
+    "vote_error": "Image voting error: ",
     "title_too_short": "Title is too short",
     "title_too_long": "Title is too long",
     "no_image_selected": "No image selected",

@@ -17,17 +17,15 @@ macro_rules! get_images_with_authors_and_votes {
                 i."author" as "author",
                 i."timestamp" as "timestamp",
                 u."name" as "author_name",
-                (coalesce(sum(case when iv_up."upvote" then 1 else 0 end), 0) -
-                coalesce(sum(case when iv_down."upvote" then 1 else 0 end), 0)) as "rating!",
+                (coalesce(sum(case when iv."upvote" is null then 0 else
+                    (case when iv."upvote" then 1 else -1 end) end), 0)) as "rating!",
                 iv_curr."upvote" as "curr_user_upvote?"
             from
                 "images" i
             join
                 "users" u on i."author" = u."id"
             left join
-                "images_votes" iv_up on i."id" = iv_up."image_id" and iv_up."upvote" = true
-            left join
-                "images_votes" iv_down on i."id" = iv_down."image_id" and iv_down."upvote" = false
+                "images_votes" iv on i."id" = iv."image_id"
             left join
                 "images_votes" iv_curr on i."id" = iv_curr."image_id" and iv_curr."user_id" = $1
             "# + $where + r#"
