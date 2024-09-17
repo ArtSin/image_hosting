@@ -19,6 +19,6 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-unwrap.workspace = true
 kamadak-exif = "0.5.5"
-ndarray = { version = "0.15.6", features = ["serde", "approx"] }
-tokenizers = "0.19.1"
-ort = { version = "=2.0.0-rc.2", features = ["cuda"] }
+ndarray = { version = "0.16.1", features = ["serde", "approx"] }
+tokenizers = "0.20.0"
+ort = { version = "=2.0.0-rc.6", features = ["cuda"] }

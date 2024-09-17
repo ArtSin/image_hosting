@@ -21,7 +21,7 @@ pub fn get_image_format(
     image: &Vec<u8>,
     image_extensions: &[&'static str],
 ) -> Result<&'static str, String> {
-    let reader = image::io::Reader::new(Cursor::new(image))
+    let reader = image::ImageReader::new(Cursor::new(image))
         .with_guessed_format()
         .unwrap();
     let format = reader
