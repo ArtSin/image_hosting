@@ -2,7 +2,10 @@ use std::sync::{Arc, OnceLock};
 
 use image::{imageops::FilterType, DynamicImage};
 use ndarray::{arr3, Array3, Axis};
-use ort::{CUDAExecutionProvider, GraphOptimizationLevel, Session};
+use ort::{
+    execution_providers::CUDAExecutionProvider,
+    session::{builder::GraphOptimizationLevel, Session},
+};
 use tokio::sync::mpsc;
 use tracing_unwrap::{OptionExt, ResultExt};
 

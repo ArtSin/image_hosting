@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into \"images_votes\" (\"image_id\", \"user_id\", \"upvote\") values ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "372a2a50c2684058a75d8fa1cc02a57afa7a2c5651cd8e68cc36996e6dd85c5c"
+}

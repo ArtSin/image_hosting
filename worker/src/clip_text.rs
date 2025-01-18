@@ -1,7 +1,10 @@
 use std::sync::OnceLock;
 
 use ndarray::{Array2, ArrayD, ArrayViewD, Axis};
-use ort::{CUDAExecutionProvider, GraphOptimizationLevel, Session};
+use ort::{
+    execution_providers::CUDAExecutionProvider,
+    session::{builder::GraphOptimizationLevel, Session},
+};
 use tokenizers::{EncodeInput, PaddingParams, Tokenizer, TruncationParams};
 use tokio::sync::mpsc;
 use tracing_unwrap::{OptionExt, ResultExt};

@@ -124,7 +124,11 @@ async fn main() {
     let (queue_name, _, _) = RABBITMQ_CHANNEL
         .get()
         .unwrap()
-        .queue_declare(QueueDeclareArguments::new(RABBITMQ_QUEUE_NAME))
+        .queue_declare(
+            QueueDeclareArguments::new(RABBITMQ_QUEUE_NAME)
+                .durable(true)
+                .finish(),
+        )
         .await
         .unwrap_or_log()
         .unwrap_or_log();

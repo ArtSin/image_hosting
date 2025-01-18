@@ -1,5 +1,6 @@
-use leptos::*;
+use leptos::server;
 use serde::{Deserialize, Serialize};
+use server_fn::ServerFnError;
 
 #[cfg(feature = "ssr")]
 use axum_extra::extract::{

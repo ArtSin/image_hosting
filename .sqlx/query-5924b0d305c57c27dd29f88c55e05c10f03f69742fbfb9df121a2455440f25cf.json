@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into \"images\" (\"format\", \"title\", \"author\", \"timestamp\") values ($1, $2, $3, $4) returning \"id\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Int8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5924b0d305c57c27dd29f88c55e05c10f03f69742fbfb9df121a2455440f25cf"
+}

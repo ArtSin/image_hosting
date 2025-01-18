@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
-use leptos::*;
-use leptos_router::*;
+use leptos::prelude::*;
+use leptos_router::{
+    hooks::{use_params, use_query_map},
+    params::Params,
+};
 
 #[cfg(feature = "ssr")]
 use axum_extra::extract::CookieJar;
@@ -40,7 +43,7 @@ pub fn User() -> impl IntoView {
                 .and_then(DateTime::<Utc>::from_timestamp_micros),
         )
     };
-    let images = create_blocking_resource(id_and_last_timestamp, move |(id, t)| async move {
+    let images = Resource::new_blocking(id_and_last_timestamp, move |(id, t)| async move {
         get_all_images_by_author(id, t).await
     });
     let query_str = move || {
@@ -82,5 +85,5 @@ pub async fn get_all_images_by_author(
         last_timestamp,
     )
     .await
-    .map_err(|_| td!(locale, db_error)().to_owned().into())
+    .map_err(|_| td_string!(locale, db_error).to_owned().into())
 }

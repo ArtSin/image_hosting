@@ -67,10 +67,13 @@ pub async fn process_request(
     let response =
         serde_json::to_vec(&search_in_elasticsearch(&message, embedding).await?).unwrap_or_log();
 
-    let mut props = BasicProperties::default();
-    props.with_correlation_id(correlation_id.unwrap_or_log());
-    let mut args = BasicPublishArguments::default();
-    args.routing_key(reply_to.unwrap_or_log().to_owned());
+    let props = BasicProperties::default()
+        .with_persistence(true)
+        .with_correlation_id(correlation_id.unwrap_or_log())
+        .finish();
+    let args = BasicPublishArguments::default()
+        .routing_key(reply_to.unwrap_or_log().to_owned())
+        .finish();
     RABBITMQ_CHANNEL
         .get()
         .unwrap()

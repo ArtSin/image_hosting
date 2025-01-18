@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from \"images_votes\" where \"image_id\" = $1 and \"user_id\" = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d07dfb6b404f245b8bae3e324f69b076e4ce6d42fb157a7e8e1bdefdf9e3f333"
+}

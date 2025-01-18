@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select\n            (coalesce(sum(case when iv.\"upvote\" then 1 else -1 end), 0)) as \"rating!\",\n            iv_curr.\"upvote\" as \"curr_user_upvote?\"\n        from\n            (select \"user_id\", \"upvote\" from \"images_votes\" where \"images_votes\".\"image_id\" = $2) as iv\n        left join\n            \"images_votes\" iv_curr on iv_curr.\"image_id\" = $2 and iv_curr.\"user_id\" = $1\n        group by\n            iv_curr.\"upvote\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "rating!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "curr_user_upvote?",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      false
+    ]
+  },
+  "hash": "3a9efdf6657c7cc02b665da7ce16d5b17cc5de3a0d31f494b60a96185c9967c5"
+}

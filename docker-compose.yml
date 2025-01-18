@@ -1,0 +1,75 @@
+services:
+  image-hosting:
+    image: image-hosting
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      target: image-hosting
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file: container.env
+    volumes:
+      - image-data:/app/storage
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  worker:
+    image: worker
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      target: worker
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file: container.env
+    volumes:
+      - image-data:/app/storage
+
+  postgresql:
+    image: postgres:17.2-bookworm
+    env_file: container.env
+    healthcheck:
+      test: "pg_isready -q -d image-hosting -U docker"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+
+  elasticsearch:
+    image: elasticsearch:8.17.0
+    environment:
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    healthcheck:
+      test: "curl --silent --fail localhost:9200/_cluster/health"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+
+  rabbitmq:
+    image: rabbitmq:4.0
+    hostname: rabbitmq
+    healthcheck:
+      test: "rabbitmq-diagnostics -q ping"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+volumes:
+  image-data:
+  postgresql-data:
+  elasticsearch-data:
+  rabbitmq-data:

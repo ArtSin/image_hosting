@@ -1,0 +1,67 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            select\n                i.\"id\" as \"image_id\",\n                i.\"format\" as \"format\",\n                i.\"title\" as \"title\",\n                i.\"author\" as \"author\",\n                i.\"timestamp\" as \"timestamp\",\n                u.\"name\" as \"author_name\",\n                (coalesce(sum(case when iv.\"upvote\" is null then 0 else\n                    (case when iv.\"upvote\" then 1 else -1 end) end), 0)) as \"rating!\",\n                iv_curr.\"upvote\" as \"curr_user_upvote?\"\n            from\n                \"images\" i\n            join\n                \"users\" u on i.\"author\" = u.\"id\"\n            left join\n                \"images_votes\" iv on i.\"id\" = iv.\"image_id\"\n            left join\n                \"images_votes\" iv_curr on i.\"id\" = iv_curr.\"image_id\" and iv_curr.\"user_id\" = $1\n            where i.\"author\" = $3 and i.\"timestamp\" < $4\n            group by\n                i.\"id\", u.\"name\", iv_curr.\"upvote\"\n            order by i.\"timestamp\" desc limit $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "image_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "format",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "author",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "author_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "rating!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "curr_user_upvote?",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "743a9bea76e4b354f95f2251e60937fde8611b8e196d1dd98cc8e5cc73022a3a"
+}

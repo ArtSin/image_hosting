@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select \"id\" from \"users\" where \"name\" = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "679385eff486af18c0500b129a56de471563703a26e531a7ab1e6a7ea3034bd2"
+}

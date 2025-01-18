@@ -1,5 +1,4 @@
-use leptos::*;
-use leptos_router::ActionForm;
+use leptos::prelude::*;
 
 #[cfg(feature = "ssr")]
 pub use axum_extra::extract::CookieJar;
@@ -31,18 +30,18 @@ pub fn Register() -> impl IntoView {
     let i18n = use_i18n();
     let app_state = use_context::<crate::AppState>().unwrap();
 
-    let register_action = create_server_action::<Register>();
+    let register_action = ServerAction::<Register>::new();
     let on_submit = move |_| {
         app_state.status.set(StatusDialogState::Loading);
     };
-    create_effect(move |_| match register_action.value().get() {
+    Effect::new(move |_| match register_action.value().get() {
         Some(Ok(user)) => {
             app_state.status.set(StatusDialogState::None);
             app_state.auth_state.set(AuthState::Authorized { user });
         }
         Some(Err(e)) => {
             app_state.status.set(StatusDialogState::Error(
-                t!(i18n, registration_error)().to_owned() + &e.to_string(),
+                t_string!(i18n, registration_error).to_owned() + &e.to_string(),
             ));
         }
         None => {}
@@ -84,28 +83,28 @@ pub async fn register_user(
     let locale = get_locale(get_lang().await.unwrap());
     let cookie_jar: CookieJar = extract().await.unwrap();
     if let AuthState::Authorized { .. } = decode_session_token(&cookie_jar) {
-        return Err(td!(locale, already_logged_in)().to_owned().into());
+        return Err(td_string!(locale, already_logged_in).to_owned().into());
     }
 
     if user_name.len() < USER_NAME_MIN_LEN {
-        return Err(td!(locale, user_name_too_short)().to_owned().into());
+        return Err(td_string!(locale, user_name_too_short).to_owned().into());
     }
     if user_name.len() > USER_NAME_MAX_LEN {
-        return Err(td!(locale, user_name_too_long)().to_owned().into());
+        return Err(td_string!(locale, user_name_too_long).to_owned().into());
     }
     if password.len() < PASSWORD_MIN_LEN {
-        return Err(td!(locale, password_too_short)().to_owned().into());
+        return Err(td_string!(locale, password_too_short).to_owned().into());
     }
     if password.len() > PASSWORD_MAX_LEN {
-        return Err(td!(locale, password_too_long)().to_owned().into());
+        return Err(td_string!(locale, password_too_long).to_owned().into());
     }
 
     if get_user_id_by_name(&user_name)
         .await
-        .map_err(|_| td!(locale, db_error)().to_owned())?
+        .map_err(|_| td_string!(locale, db_error).to_owned())?
         .is_some()
     {
-        return Err(td!(locale, user_already_exists)().to_owned().into());
+        return Err(td_string!(locale, user_already_exists).to_owned().into());
     }
 
     let hasher = HashBuilder::new()
@@ -122,7 +121,7 @@ pub async fn register_user(
     };
     insert_user(&mut user, &password_hash)
         .await
-        .map_err(|_| td!(locale, db_error)().to_owned())?;
+        .map_err(|_| td_string!(locale, db_error).to_owned())?;
 
     use_cookie_jar(create_session_token(&user, cookie_jar));
     redirect("/");

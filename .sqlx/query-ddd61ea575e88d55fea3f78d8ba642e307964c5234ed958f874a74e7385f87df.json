@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            select\n                i.\"id\" as \"image_id\",\n                i.\"format\" as \"format\",\n                i.\"title\" as \"title\",\n                i.\"author\" as \"author\",\n                i.\"timestamp\" as \"timestamp\",\n                u.\"name\" as \"author_name\",\n                (coalesce(sum(case when iv.\"upvote\" is null then 0 else\n                    (case when iv.\"upvote\" then 1 else -1 end) end), 0)) as \"rating!\",\n                iv_curr.\"upvote\" as \"curr_user_upvote?\"\n            from\n                \"images\" i\n            join\n                \"users\" u on i.\"author\" = u.\"id\"\n            left join\n                \"images_votes\" iv on i.\"id\" = iv.\"image_id\"\n            left join\n                \"images_votes\" iv_curr on i.\"id\" = iv_curr.\"image_id\" and iv_curr.\"user_id\" = $1\n            where i.\"id\" in (select unnest($2::bigint[]))\n            group by\n                i.\"id\", u.\"name\", iv_curr.\"upvote\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "image_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "format",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "author",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "author_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "rating!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "curr_user_upvote?",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "ddd61ea575e88d55fea3f78d8ba642e307964c5234ed958f874a74e7385f87df"
+}

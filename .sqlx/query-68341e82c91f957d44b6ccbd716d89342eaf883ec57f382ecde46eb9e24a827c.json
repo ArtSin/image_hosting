@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select \"id\", \"password_hash\" from \"users\" where \"name\" = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "password_hash",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "68341e82c91f957d44b6ccbd716d89342eaf883ec57f382ecde46eb9e24a827c"
+}

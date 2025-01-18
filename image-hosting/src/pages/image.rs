@@ -1,5 +1,5 @@
-use leptos::*;
-use leptos_router::*;
+use leptos::prelude::*;
+use leptos_router::{hooks::use_params, params::Params};
 
 #[cfg(feature = "ssr")]
 use axum_extra::extract::CookieJar;
@@ -28,7 +28,7 @@ pub fn Image() -> impl IntoView {
     let params = use_params::<ImageParams>();
     let id = move || params.get().map(|x| x.id).ok().flatten();
 
-    let image = create_blocking_resource(
+    let image = Resource::new_blocking(
         id,
         move |id| async move { get_image(id.unwrap_or(-1)).await },
     );
@@ -36,15 +36,15 @@ pub fn Image() -> impl IntoView {
     let show_error = move || match image.get() {
         Some(Err(e)) => view! {
             <main>
-                <h2>{move || { t!(i18n, connection_error)().to_owned() + &e.to_string() }}</h2>
+                <h2>{move || { t_string!(i18n, connection_error).to_owned() + &e.to_string() }}</h2>
             </main>
         }
-        .into_view(),
-        _ => view! {}.into_view(),
+        .into_any(),
+        _ => ().into_any(),
     };
 
     view! {
-        <Suspense fallback=|| view! {}>
+        <Suspense fallback=|| ()>
             <Show when=move || matches!(image.get(), Some(Ok(_))) fallback=show_error>
                 <main>
                     {move || {
@@ -69,6 +69,6 @@ pub async fn get_image(id: i64) -> Result<(Image, User, ImageVotes), ServerFnErr
     };
     get_image_with_authors_and_votes_by_id(id, curr_user_id)
         .await
-        .map_err(|_| td!(locale, db_error)().to_owned())?
-        .ok_or_else(|| td!(locale, nothing_found)().to_owned().into())
+        .map_err(|_| td_string!(locale, db_error).to_owned())?
+        .ok_or_else(|| td_string!(locale, nothing_found).to_owned().into())
 }

@@ -1,5 +1,4 @@
-use leptos::*;
-use leptos_router::*;
+use leptos::prelude::*;
 use serde::Deserialize;
 
 #[cfg(feature = "ssr")]
@@ -45,12 +44,12 @@ pub fn ImageComp(
         image.id, image.format, thumbnail
     );
 
-    let vote_action = create_server_action::<VoteOnImage>();
-    let (rating, set_rating) = create_signal(image_votes.rating);
-    let (upvoted, set_upvoted) = create_signal(image_votes.curr_user_upvote == Some(true));
-    let (downvoted, set_downvoted) = create_signal(image_votes.curr_user_upvote == Some(false));
+    let vote_action = ServerAction::<VoteOnImage>::new();
+    let (rating, set_rating) = signal(image_votes.rating);
+    let (upvoted, set_upvoted) = signal(image_votes.curr_user_upvote == Some(true));
+    let (downvoted, set_downvoted) = signal(image_votes.curr_user_upvote == Some(false));
 
-    create_effect(move |_| match vote_action.value().get() {
+    Effect::new(move |_| match vote_action.value().get() {
         Some(Ok(user)) => {
             set_rating.set(user.rating);
             set_upvoted.set(user.curr_user_upvote == Some(true));
@@ -58,7 +57,7 @@ pub fn ImageComp(
         }
         Some(Err(e)) => {
             app_state.status.set(StatusDialogState::Error(
-                t!(i18n, login_error)().to_owned() + &e.to_string(),
+                t_string!(i18n, login_error).to_owned() + &e.to_string(),
             ));
         }
         None => {}
@@ -67,7 +66,7 @@ pub fn ImageComp(
     view! {
         <article class="image">
             <h3>
-                <A href={format!("/image/{}", image.id)}>{image.title}</A>
+                <a href={format!("/image/{}", image.id)}>{image.title}</a>
             </h3>
             <img src=img_path />
             <div>
@@ -101,7 +100,7 @@ pub fn ImageComp(
                     {image.timestamp.format("%F %T %Z").to_string()}
                 </p>
                 <h4>
-                    <A href={format!("/user/{}", author.id)}>{author.name}</A>
+                    <a href={format!("/user/{}", author.id)}>{author.name}</a>
                 </h4>
             </div>
         </article>
@@ -183,21 +182,23 @@ pub async fn vote_on_image(
     let cookie_jar: CookieJar = extract().await.unwrap();
     let curr_user_id = match decode_session_token(&cookie_jar) {
         AuthState::Authorized { user } => user.id,
-        AuthState::NotAuthorized => return Err(td!(locale, not_logged_in)().to_owned().into()),
+        AuthState::NotAuthorized => {
+            return Err(td_string!(locale, not_logged_in).to_owned().into())
+        }
     };
 
     if already_voted {
         delete_image_vote(image_id, curr_user_id)
             .await
-            .map_err(|_| td!(locale, db_error)().to_owned())?;
+            .map_err(|_| td_string!(locale, db_error).to_owned())?;
     }
     if let Some(x) = upvote {
         insert_image_vote(image_id, curr_user_id, x)
             .await
-            .map_err(|_| td!(locale, db_error)().to_owned())?
+            .map_err(|_| td_string!(locale, db_error).to_owned())?
     };
     let image_votes = get_image_votes(curr_user_id, image_id)
         .await
-        .map_err(|_| td!(locale, db_error)().to_owned())?;
+        .map_err(|_| td_string!(locale, db_error).to_owned())?;
     Ok(image_votes)
 }

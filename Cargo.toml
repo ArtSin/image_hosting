@@ -3,21 +3,21 @@ members = ["common", "image-hosting", "worker"]
 resolver = "2"
 
 [workspace.dependencies]
-clap = { version = "4.5.17", features = ["derive"] }
+clap = { version = "4.5.26", features = ["derive"] }
 dotenvy = "0.15.7"
-axum = "0.7.5"
-serde = { version = "1.0.210", features = ["derive"] }
+axum = "0.7.9"
+serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "fs", "signal"] }
-tower = { version = "0.5.1", features = ["timeout", "util"] }
-tower-http = { version = "0.5.2", features = ["fs", "limit", "trace"] }
-elasticsearch = "8.15.0-alpha.1"
-amqprs = { version = "2.0.0", features = ["traces"] }
-image = "0.25.2"
-anyhow = "1.0.89"
-async-trait = "0.1.82"
-tracing = { version = "0.1.40", features = ["release_max_level_info"] }
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tower = { version = "0.5.2", features = ["timeout", "util"] }
+tower-http = { version = "0.6.2", features = ["fs", "limit", "trace"] }
+elasticsearch = "8.17.0-alpha.1"
+amqprs = { version = "2.1.0", features = ["traces"] }
+image = "0.25.5"
+anyhow = "1.0.95"
+async-trait = "0.1.85"
+tracing = { version = "0.1.41", features = ["release_max_level_info"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing-unwrap = "1.0.1"
 
 # Defines a size-optimized profile for the WASM bundle in release mode

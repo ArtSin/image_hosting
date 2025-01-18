@@ -9,6 +9,7 @@ pkg
 Cargo.lock
 
 .env
+container.env
 models/
 storage/
 

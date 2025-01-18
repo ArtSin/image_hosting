@@ -1,0 +1,10 @@
+target
+storage
+data
+.git
+.gitignore
+.env
+container.env
+Dockerfile
+docker-compose.yml
+.dockerignore

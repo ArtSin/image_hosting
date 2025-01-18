@@ -17,9 +17,8 @@ async fn main() {
     };
     use axum::Router;
     use common::storage::create_folders;
-    use image_hosting::fileserv::file_and_error_handler;
     use image_hosting::{app::*, components::image::get_image_file};
-    use leptos::*;
+    use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use tracing::level_filters::LevelFilter;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -29,7 +28,7 @@ async fn main() {
     // <https://github.com/leptos-rs/start-axum#executing-a-server-on-a-remote-machine-without-the-toolchain>
     // Alternately a file can be specified such as Some("Cargo.toml")
     // The file would need to be included with the executable when moved to deployment
-    let conf = get_configuration(None).await.unwrap();
+    let conf = get_configuration(None).unwrap();
     let leptos_options = conf.leptos_options;
     let addr = leptos_options.site_addr;
     let routes = generate_route_list(App);
@@ -66,15 +65,16 @@ async fn main() {
         .await
         .expect_or_log("Can't create storage folders");
 
-    image_hosting::DB_CONN
-        .set(
-            sqlx::postgres::PgPoolOptions::new()
-                .max_connections(image_hosting::MAX_DB_CONNECTIONS)
-                .connect(&db_url)
-                .await
-                .expect_or_log("Database connection failed"),
-        )
-        .unwrap();
+    let db = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(image_hosting::MAX_DB_CONNECTIONS)
+        .connect(&db_url)
+        .await
+        .expect_or_log("Database connection failed");
+    sqlx::migrate!("../migrations")
+        .run(&db)
+        .await
+        .expect_or_log("Database migrations failed");
+    image_hosting::DB_CONN.set(db).unwrap();
 
     let connection = Connection::open(&OpenConnectionArguments::new(
         &rabbitmq_host,
@@ -99,12 +99,15 @@ async fn main() {
         .map_err(|_| ())
         .unwrap();
 
-    let mut queue_args = QueueDeclareArguments::new("");
-    queue_args.exclusive(true);
     let (callback_queue_name, _, _) = image_hosting::RABBITMQ_CHANNEL
         .get()
         .unwrap()
-        .queue_declare(queue_args)
+        .queue_declare(
+            QueueDeclareArguments::new("")
+                .exclusive(true)
+                .durable(true)
+                .finish(),
+        )
         .await
         .unwrap_or_log()
         .unwrap_or_log();
@@ -126,15 +129,18 @@ async fn main() {
     // build our application with a route
     let app = Router::new()
         .route("/api/image/:file_name", axum::routing::get(get_image_file))
-        .leptos_routes(&leptos_options, routes, App)
-        .fallback(file_and_error_handler)
+        .leptos_routes(&leptos_options, routes, {
+            let leptos_options = leptos_options.clone();
+            move || shell(leptos_options.clone())
+        })
+        .fallback(leptos_axum::file_and_error_handler(shell))
         .with_state(leptos_options)
         .layer(tower_http::limit::RequestBodyLimitLayer::new(
             11 * 1024 * 1024,
         ));
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    logging::log!("listening on http://{}", &addr);
+    leptos::logging::log!("listening on http://{}", &addr);
     axum::serve(listener, app.into_make_service())
         .await
         .unwrap();

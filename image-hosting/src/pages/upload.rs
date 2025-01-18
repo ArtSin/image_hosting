@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 use server_fn::codec::{MultipartData, MultipartFormData};
 use web_sys::FormData;
 
@@ -39,7 +39,7 @@ pub fn Upload() -> impl IntoView {
     let i18n = use_i18n();
     let app_state = use_context::<crate::AppState>().unwrap();
 
-    let upload_action = create_action(|data: &FormData| upload_image(data.clone().into()));
+    let upload_action = Action::new_local(|data: &FormData| upload_image(data.clone().into()));
     let on_submit = move |event: web_sys::SubmitEvent| {
         use wasm_bindgen::JsCast;
 
@@ -54,21 +54,21 @@ pub fn Upload() -> impl IntoView {
         let image_size = image.size() as usize;
         if image_size > IMAGE_MAX_BYTES {
             app_state.status.set(StatusDialogState::Error(
-                t!(i18n, uploading_error)().to_owned() + t!(i18n, image_too_big)(),
+                t_string!(i18n, uploading_error).to_owned() + t_string!(i18n, image_too_big),
             ));
             return;
         }
 
         app_state.status.set(StatusDialogState::Loading);
-        upload_action.dispatch(form_data);
+        upload_action.dispatch_local(form_data);
     };
-    create_effect(move |_| match upload_action.value().get() {
+    Effect::new(move |_| match upload_action.value().get() {
         Some(Ok(_)) => {
             app_state.status.set(StatusDialogState::None);
         }
         Some(Err(e)) => {
             app_state.status.set(StatusDialogState::Error(
-                t!(i18n, uploading_error)().to_owned() + &e.to_string(),
+                t_string!(i18n, uploading_error).to_owned() + &e.to_string(),
             ));
         }
         None => {}
@@ -107,7 +107,9 @@ pub async fn upload_image(data: MultipartData) -> Result<(), ServerFnError<Strin
     let cookie_jar: CookieJar = extract().await.unwrap();
     let user = match decode_session_token(&cookie_jar) {
         AuthState::Authorized { user } => user,
-        AuthState::NotAuthorized => return Err(td!(locale, not_logged_in)().to_owned().into()),
+        AuthState::NotAuthorized => {
+            return Err(td_string!(locale, not_logged_in).to_owned().into())
+        }
     };
 
     let mut data = data.into_inner().unwrap();
@@ -119,7 +121,7 @@ pub async fn upload_image(data: MultipartData) -> Result<(), ServerFnError<Strin
             match field.chunk().await {
                 Ok(Some(chunk)) => buf.extend_from_slice(&chunk),
                 Ok(None) => break,
-                Err(_) => return Err(td!(locale, parsing_error)().to_owned().into()),
+                Err(_) => return Err(td_string!(locale, parsing_error).to_owned().into()),
             }
         }
 
@@ -130,21 +132,21 @@ pub async fn upload_image(data: MultipartData) -> Result<(), ServerFnError<Strin
             "image" => {
                 image_bytes = Some(buf.to_vec());
             }
-            _ => return Err(td!(locale, parsing_error)().to_owned().into()),
+            _ => return Err(td_string!(locale, parsing_error).to_owned().into()),
         }
     }
 
     if title.is_none() || image_bytes.is_none() {
-        return Err(td!(locale, parsing_error)().to_owned().into());
+        return Err(td_string!(locale, parsing_error).to_owned().into());
     }
     let title = title.unwrap();
     let image_bytes = image_bytes.unwrap();
 
     if title.len() < TITLE_MIN_LEN {
-        return Err(td!(locale, title_too_short)().to_owned().into());
+        return Err(td_string!(locale, title_too_short).to_owned().into());
     }
     if title.len() > TITLE_MAX_LEN {
-        return Err(td!(locale, title_too_long)().to_owned().into());
+        return Err(td_string!(locale, title_too_long).to_owned().into());
     }
 
     let format = get_image_format(&image_bytes, &IMAGE_EXTENSIONS)?;
@@ -158,7 +160,7 @@ pub async fn upload_image(data: MultipartData) -> Result<(), ServerFnError<Strin
     };
     insert_image(&mut image_db)
         .await
-        .map_err(|_| td!(locale, db_error)().to_owned())?;
+        .map_err(|_| td_string!(locale, db_error).to_owned())?;
 
     let path = get_image_path(image_db.id, format, false);
     if let e @ Err(_) = store_image(path, image_bytes).await {
@@ -172,14 +174,16 @@ pub async fn upload_image(data: MultipartData) -> Result<(), ServerFnError<Strin
         title: image_db.title,
     }))
     .unwrap();
-    let mut args = BasicPublishArguments::default();
-    args.routing_key(common::RABBITMQ_QUEUE_NAME.to_owned());
+    let props = BasicProperties::default().with_persistence(true).finish();
+    let args = BasicPublishArguments::default()
+        .routing_key(common::RABBITMQ_QUEUE_NAME.to_owned())
+        .finish();
     crate::RABBITMQ_CHANNEL
         .get()
         .unwrap()
-        .basic_publish(BasicProperties::default(), body, args)
+        .basic_publish(props, body, args)
         .await
-        .map_err(|_| td!(locale, db_error)().to_owned())?;
+        .map_err(|_| td_string!(locale, db_error).to_owned())?;
 
     redirect("/");
     Ok(())

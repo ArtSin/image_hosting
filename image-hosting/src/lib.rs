@@ -11,13 +11,12 @@ use once_cell::sync::Lazy;
 use tokio::sync::oneshot;
 
 use components::status_dialog::StatusDialogState;
-use leptos::*;
+use leptos::prelude::*;
 
 pub mod app;
 pub mod components;
 pub mod db;
 pub mod error_template;
-pub mod fileserv;
 pub mod image;
 pub mod image_votes;
 pub mod pages;
@@ -51,5 +50,5 @@ struct AppState {
 pub fn hydrate() {
     use crate::app::*;
     console_error_panic_hook::set_once();
-    leptos::mount_to_body(App);
+    leptos::mount::hydrate_body(App);
 }

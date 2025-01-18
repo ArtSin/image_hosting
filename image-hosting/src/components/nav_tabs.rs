@@ -1,8 +1,7 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use leptos::*;
+use leptos::prelude::*;
 use leptos_i18n::I18nContext;
-use leptos_router::*;
 
 use crate::{
     i18n::*,
@@ -27,15 +26,15 @@ impl NavTabsPages {
         h.finish()
     }
 
-    fn text(self, i18n: I18nContext<Locale>) -> Box<dyn Fn() -> String> {
+    fn text(self, i18n: I18nContext<Locale>) -> Box<dyn Fn() -> String + Send + Sync> {
         match self {
-            Self::Index => Box::new(move || t!(i18n, index)().to_owned()),
-            Self::Search => Box::new(move || t!(i18n, search)().to_owned()),
-            Self::Upload => Box::new(move || t!(i18n, upload)().to_owned()),
-            Self::LogIn => Box::new(move || t!(i18n, log_in)().to_owned()),
-            Self::Register => Box::new(move || t!(i18n, register)().to_owned()),
+            Self::Index => Box::new(move || t_string!(i18n, index).to_owned()),
+            Self::Search => Box::new(move || t_string!(i18n, search).to_owned()),
+            Self::Upload => Box::new(move || t_string!(i18n, upload).to_owned()),
+            Self::LogIn => Box::new(move || t_string!(i18n, log_in).to_owned()),
+            Self::Register => Box::new(move || t_string!(i18n, register).to_owned()),
             Self::User(user) => Box::new(move || user.name.clone()),
-            Self::LogOut => Box::new(move || t!(i18n, log_out)().to_owned()),
+            Self::LogOut => Box::new(move || t_string!(i18n, log_out).to_owned()),
         }
     }
 
@@ -85,7 +84,7 @@ pub fn NavTabs() -> impl IntoView {
                 <For each=tabs key=|x| x.id() children=move |tab| {
                     view! {
                         <li class={tab.li_class()}>
-                            <A href={tab.link()}>{tab.text(i18n)}</A>
+                            <a href={tab.link()}>{tab.clone().text(i18n)}</a>
                         </li>
                     }
                 } />
