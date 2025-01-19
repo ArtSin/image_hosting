@@ -4,7 +4,7 @@ use common::{
     storage::{get_image_path, load_image, symlink_thumbnail},
     OnUploadMessage, ELASTICSEARCH_INDEX,
 };
-use elasticsearch::CreateParts;
+use elasticsearch::IndexParts;
 use exif::{In, Tag};
 use image::{
     imageops::{self, FilterType},
@@ -83,7 +83,7 @@ async fn add_to_elasticsearch(
     ELASTICSEARCH
         .get()
         .unwrap()
-        .create(CreateParts::IndexId(
+        .index(IndexParts::IndexId(
             ELASTICSEARCH_INDEX,
             &message.id.to_string(),
         ))

@@ -23,7 +23,7 @@ use crate::{
 
 #[cfg(feature = "ssr")]
 use crate::{
-    db::image::{delete_image, insert_image},
+    db::image::insert_image,
     image::{Image, IMAGE_EXTENSIONS},
     user::decode_session_token,
     util::{get_lang, get_locale},
@@ -158,14 +158,22 @@ pub async fn upload_image(data: MultipartData) -> Result<(), ServerFnError<Strin
         timestamp: chrono::offset::Utc::now(),
         ..Default::default()
     };
-    insert_image(&mut image_db)
+
+    let mut transaction = crate::DB_CONN
+        .get()
+        .unwrap()
+        .begin()
+        .await
+        .map_err(|_| td_string!(locale, db_error).to_owned())?;
+    insert_image(&mut transaction, &mut image_db)
         .await
         .map_err(|_| td_string!(locale, db_error).to_owned())?;
 
     let path = get_image_path(image_db.id, format, false);
     if let e @ Err(_) = store_image(path, image_bytes).await {
-        let _ = delete_image(image_db.id).await;
+        let _ = transaction.rollback().await;
         e?;
+        unreachable!()
     }
 
     let body = serde_json::to_vec(&WorkerMessage::OnUpload(OnUploadMessage {
@@ -184,6 +192,11 @@ pub async fn upload_image(data: MultipartData) -> Result<(), ServerFnError<Strin
         .as_ref()
         .unwrap()
         .basic_publish(props, body, args)
+        .await
+        .map_err(|_| td_string!(locale, db_error).to_owned())?;
+
+    transaction
+        .commit()
         .await
         .map_err(|_| td_string!(locale, db_error).to_owned())?;
 

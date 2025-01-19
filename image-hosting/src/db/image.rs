@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
+use sqlx::{Postgres, Transaction};
 
 use crate::{image::Image, image_votes::ImageVotes, user::User};
 
@@ -159,22 +160,16 @@ pub async fn get_image_with_authors_and_votes_by_id(
         .map(|x| x.map(|y| record_to_images_with_authors_and_votes!(y)))
 }
 
-pub async fn insert_image(image: &mut Image) -> Result<(), sqlx::Error> {
-    let db = crate::DB_CONN.get().unwrap();
+pub async fn insert_image(
+    transaction: &mut Transaction<'_, Postgres>,
+    image: &mut Image,
+) -> Result<(), sqlx::Error> {
     image.id = sqlx::query!(
         r#"insert into "images" ("format", "title", "author", "timestamp") values ($1, $2, $3, $4) returning "id""#,
         image.format, image.title, image.author, image.timestamp
     )
-    .fetch_one(db)
+    .fetch_one(&mut **transaction)
     .await?
     .id;
-    Ok(())
-}
-
-pub async fn delete_image(id: i64) -> Result<(), sqlx::Error> {
-    let db = crate::DB_CONN.get().unwrap();
-    sqlx::query!(r#"delete from "images" where "id" = $1"#, id)
-        .execute(db)
-        .await?;
     Ok(())
 }
