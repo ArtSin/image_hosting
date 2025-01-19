@@ -90,7 +90,7 @@ pub async fn search_images(
     let correlation_id = uuid::Uuid::new_v4().to_string();
     let props = BasicProperties::default()
         .with_persistence(true)
-        .with_reply_to(crate::RABBITMQ_CALLBACK_QUEUE.get().unwrap())
+        .with_reply_to(common::RABBITMQ_CALLBACK_QUEUE_NAME)
         .with_correlation_id(&correlation_id)
         .finish();
     let args = BasicPublishArguments::default()
@@ -98,7 +98,9 @@ pub async fn search_images(
         .finish();
     crate::RABBITMQ_RESPONSES.insert(correlation_id, tx);
     crate::RABBITMQ_CHANNEL
-        .get()
+        .read()
+        .await
+        .as_ref()
         .unwrap()
         .basic_publish(props, body, args)
         .await

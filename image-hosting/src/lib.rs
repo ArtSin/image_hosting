@@ -2,13 +2,15 @@
 use std::sync::OnceLock;
 
 #[cfg(feature = "ssr")]
+use amqprs::channel::Channel;
+#[cfg(feature = "ssr")]
 use common::SearchResponse;
 #[cfg(feature = "ssr")]
 use dashmap::DashMap;
 #[cfg(feature = "ssr")]
 use once_cell::sync::Lazy;
 #[cfg(feature = "ssr")]
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, RwLock};
 
 use components::status_dialog::StatusDialogState;
 use leptos::prelude::*;
@@ -32,9 +34,7 @@ pub static DB_CONN: OnceLock<sqlx::PgPool> = OnceLock::new();
 #[cfg(feature = "ssr")]
 pub static APP_SECRET: OnceLock<String> = OnceLock::new();
 #[cfg(feature = "ssr")]
-pub static RABBITMQ_CHANNEL: OnceLock<amqprs::channel::Channel> = OnceLock::new();
-#[cfg(feature = "ssr")]
-pub static RABBITMQ_CALLBACK_QUEUE: OnceLock<String> = OnceLock::new();
+pub static RABBITMQ_CHANNEL: RwLock<Option<Channel>> = RwLock::const_new(None);
 #[cfg(feature = "ssr")]
 pub static RABBITMQ_RESPONSES: Lazy<DashMap<String, oneshot::Sender<SearchResponse>>> =
     Lazy::new(|| DashMap::new());

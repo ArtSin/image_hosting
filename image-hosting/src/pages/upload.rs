@@ -179,7 +179,9 @@ pub async fn upload_image(data: MultipartData) -> Result<(), ServerFnError<Strin
         .routing_key(common::RABBITMQ_QUEUE_NAME.to_owned())
         .finish();
     crate::RABBITMQ_CHANNEL
-        .get()
+        .read()
+        .await
+        .as_ref()
         .unwrap()
         .basic_publish(props, body, args)
         .await

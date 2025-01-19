@@ -5,16 +5,21 @@ use common::SearchResponse;
 #[cfg(feature = "ssr")]
 use image_hosting::RABBITMQ_RESPONSES;
 #[cfg(feature = "ssr")]
+use tokio::{signal, sync::oneshot};
+#[cfg(feature = "ssr")]
 use tracing_unwrap::{OptionExt, ResultExt};
+
+#[cfg(feature = "ssr")]
+struct RabbitMQSettings {
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+}
 
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use amqprs::{
-        callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
-        channel::{BasicConsumeArguments, QueueDeclareArguments},
-        connection::{Connection, OpenConnectionArguments},
-    };
     use axum::Router;
     use common::storage::create_folders;
     use image_hosting::{app::*, components::image::get_image_file};
@@ -50,16 +55,19 @@ async fn main() {
             std::env::var("APP_SECRET").expect_or_log("APP_SECRET environment variable is not set"),
         )
         .unwrap();
-    let rabbitmq_host = std::env::var("RABBITMQ_HOST")
-        .expect_or_log("RABBITMQ_HOST environment variable is not set");
-    let rabbitmq_port = std::env::var("RABBITMQ_PORT")
-        .expect_or_log("RABBITMQ_PORT environment variable is not set")
-        .parse()
-        .expect_or_log("Can't parse RABBITMQ_PORT");
-    let rabbitmq_username = std::env::var("RABBITMQ_USERNAME")
-        .expect_or_log("RABBITMQ_USERNAME environment variable is not set");
-    let rabbitmq_password = std::env::var("RABBITMQ_PASSWORD")
-        .expect_or_log("RABBITMQ_PASSWORD environment variable is not set");
+
+    let rabbitmq_settings = RabbitMQSettings {
+        host: std::env::var("RABBITMQ_HOST")
+            .expect_or_log("RABBITMQ_HOST environment variable is not set"),
+        port: std::env::var("RABBITMQ_PORT")
+            .expect_or_log("RABBITMQ_PORT environment variable is not set")
+            .parse()
+            .expect_or_log("Can't parse RABBITMQ_PORT"),
+        username: std::env::var("RABBITMQ_USERNAME")
+            .expect_or_log("RABBITMQ_USERNAME environment variable is not set"),
+        password: std::env::var("RABBITMQ_PASSWORD")
+            .expect_or_log("RABBITMQ_PASSWORD environment variable is not set"),
+    };
 
     create_folders()
         .await
@@ -76,56 +84,6 @@ async fn main() {
         .expect_or_log("Database migrations failed");
     image_hosting::DB_CONN.set(db).unwrap();
 
-    let connection = Connection::open(&OpenConnectionArguments::new(
-        &rabbitmq_host,
-        rabbitmq_port,
-        &rabbitmq_username,
-        &rabbitmq_password,
-    ))
-    .await
-    .expect_or_log("Can't connect to RabbitMQ");
-    connection
-        .register_callback(DefaultConnectionCallback)
-        .await
-        .unwrap_or_log();
-
-    let channel = connection.open_channel(None).await.unwrap_or_log();
-    channel
-        .register_callback(DefaultChannelCallback)
-        .await
-        .unwrap_or_log();
-    image_hosting::RABBITMQ_CHANNEL
-        .set(channel)
-        .map_err(|_| ())
-        .unwrap();
-
-    let (callback_queue_name, _, _) = image_hosting::RABBITMQ_CHANNEL
-        .get()
-        .unwrap()
-        .queue_declare(
-            QueueDeclareArguments::new("")
-                .exclusive(true)
-                .durable(true)
-                .finish(),
-        )
-        .await
-        .unwrap_or_log()
-        .unwrap_or_log();
-    image_hosting::RABBITMQ_CALLBACK_QUEUE
-        .set(callback_queue_name.clone())
-        .unwrap();
-
-    tokio::spawn(async move {
-        let mut args = BasicConsumeArguments::new(&callback_queue_name, "");
-        args.no_ack = true;
-        image_hosting::RABBITMQ_CHANNEL
-            .get()
-            .unwrap()
-            .basic_consume(Consumer, args)
-            .await
-            .unwrap();
-    });
-
     // build our application with a route
     let app = Router::new()
         .route("/api/image/:file_name", axum::routing::get(get_image_file))
@@ -140,10 +98,121 @@ async fn main() {
         ));
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    leptos::logging::log!("listening on http://{}", &addr);
-    axum::serve(listener, app.into_make_service())
+    let (shutdown_axum_tx, shutdown_axum_rx) = oneshot::channel();
+    tracing::info!("Listening on http://{}", &addr);
+    let axum_task = tokio::spawn(async {
+        axum::serve(listener, app.into_make_service())
+            .with_graceful_shutdown(async {
+                let _ = shutdown_axum_rx.await;
+            })
+            .await
+            .unwrap();
+    });
+
+    let (shutdown_rabbitmq_tx, shutdown_rabbitmq_rx) = oneshot::channel();
+    let rabbitmq_task = tokio::spawn(async {
+        launch_rabbitmq_connection(rabbitmq_settings, shutdown_rabbitmq_rx).await;
+    });
+
+    shutdown_signal().await;
+    shutdown_rabbitmq_tx.send(()).unwrap();
+    rabbitmq_task.await.unwrap();
+    shutdown_axum_tx.send(()).unwrap();
+    axum_task.await.unwrap();
+}
+
+#[cfg(feature = "ssr")]
+async fn launch_rabbitmq_connection(
+    settings: RabbitMQSettings,
+    mut shutdown_rx: oneshot::Receiver<()>,
+) {
+    use std::time::Duration;
+
+    loop {
+        match connect_rabbitmq(&settings, &mut shutdown_rx).await {
+            Ok(_) => {
+                tracing::info!("RabbitMQ connection shut down normally");
+                break;
+            }
+            Err(err) => {
+                tracing::error!("RabbitMQ connection returned error: {err:?}");
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+            }
+        }
+    }
+}
+
+#[cfg(feature = "ssr")]
+async fn connect_rabbitmq(
+    settings: &RabbitMQSettings,
+    shutdown_rx: &mut oneshot::Receiver<()>,
+) -> anyhow::Result<()> {
+    use amqprs::{
+        callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
+        channel::{BasicConsumeArguments, QueueDeclareArguments},
+        connection::{Connection, OpenConnectionArguments},
+    };
+
+    let connection = Connection::open(&OpenConnectionArguments::new(
+        &settings.host,
+        settings.port,
+        &settings.username,
+        &settings.password,
+    ))
+    .await?;
+    connection
+        .register_callback(DefaultConnectionCallback)
+        .await
+        .unwrap_or_log();
+
+    let channel = connection.open_channel(None).await.unwrap_or_log();
+    channel
+        .register_callback(DefaultChannelCallback)
+        .await
+        .unwrap_or_log();
+    *image_hosting::RABBITMQ_CHANNEL.write().await = Some(channel);
+
+    let (callback_queue_name, _, _) = image_hosting::RABBITMQ_CHANNEL
+        .read()
+        .await
+        .as_ref()
+        .unwrap()
+        .queue_declare(
+            QueueDeclareArguments::new(common::RABBITMQ_CALLBACK_QUEUE_NAME)
+                .durable(true)
+                .finish(),
+        )
+        .await
+        .unwrap_or_log()
+        .unwrap_or_log();
+
+    let args = BasicConsumeArguments::new(&callback_queue_name, "")
+        .manual_ack(true)
+        .finish();
+    image_hosting::RABBITMQ_CHANNEL
+        .read()
+        .await
+        .as_ref()
+        .unwrap()
+        .basic_consume(Consumer, args)
         .await
         .unwrap();
+
+    tracing::info!("Listening for RabbitMQ messages...");
+
+    tokio::select! {
+        _ = shutdown_rx => {
+            connection.close().await?;
+            Ok(())
+        }
+        result = connection.listen_network_io_failure() => {
+            if result {
+                Err(anyhow::anyhow!("connection failure"))
+            } else {
+                Err(anyhow::anyhow!("connection shut down without IO errors"))
+            }
+        }
+    }
 }
 
 #[cfg(feature = "ssr")]
@@ -166,6 +235,33 @@ impl AsyncConsumer for Consumer {
             sender.send(message).unwrap_or_log();
         }
     }
+}
+
+#[cfg(feature = "ssr")]
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect_or_log("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect_or_log("Failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::info!("Signal received, starting graceful shutdown");
 }
 
 #[cfg(not(feature = "ssr"))]

@@ -75,7 +75,9 @@ pub async fn process_request(
         .routing_key(reply_to.unwrap_or_log().to_owned())
         .finish();
     RABBITMQ_CHANNEL
-        .get()
+        .read()
+        .await
+        .as_ref()
         .unwrap()
         .basic_publish(props, response, args)
         .await

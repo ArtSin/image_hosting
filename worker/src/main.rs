@@ -6,7 +6,7 @@ mod on_upload;
 mod search;
 mod util;
 
-use std::sync::OnceLock;
+use std::{sync::OnceLock, time::Duration};
 
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
@@ -31,6 +31,10 @@ use elasticsearch::{
 };
 use ndarray::{Array, ArrayD, Dimension};
 use serde::Serialize;
+use tokio::{
+    signal,
+    sync::{oneshot, RwLock},
+};
 use tracing_subscriber::{
     filter::LevelFilter, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter,
 };
@@ -38,7 +42,7 @@ use tracing_unwrap::{OptionExt, ResultExt};
 
 use crate::create_index::create_index;
 
-static RABBITMQ_CHANNEL: OnceLock<Channel> = OnceLock::new();
+static RABBITMQ_CHANNEL: RwLock<Option<Channel>> = RwLock::const_new(None);
 static ELASTICSEARCH: OnceLock<Elasticsearch> = OnceLock::new();
 
 #[derive(Debug, Parser)]
@@ -48,6 +52,13 @@ struct Settings {
     batch_size: usize,
     #[arg(long, default_value_t = 100)]
     max_delay_ms: u64,
+}
+
+struct RabbitMQSettings {
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -84,54 +95,25 @@ async fn main() {
     dotenvy::dotenv().ok();
     let settings = Settings::parse();
 
-    let rabbitmq_host = std::env::var("RABBITMQ_HOST")
-        .expect_or_log("RABBITMQ_HOST environment variable is not set");
-    let rabbitmq_port = std::env::var("RABBITMQ_PORT")
-        .expect_or_log("RABBITMQ_PORT environment variable is not set")
-        .parse()
-        .expect_or_log("Can't parse RABBITMQ_PORT");
-    let rabbitmq_username = std::env::var("RABBITMQ_USERNAME")
-        .expect_or_log("RABBITMQ_USERNAME environment variable is not set");
-    let rabbitmq_password = std::env::var("RABBITMQ_PASSWORD")
-        .expect_or_log("RABBITMQ_PASSWORD environment variable is not set");
+    let rabbitmq_settings = RabbitMQSettings {
+        host: std::env::var("RABBITMQ_HOST")
+            .expect_or_log("RABBITMQ_HOST environment variable is not set"),
+        port: std::env::var("RABBITMQ_PORT")
+            .expect_or_log("RABBITMQ_PORT environment variable is not set")
+            .parse()
+            .expect_or_log("Can't parse RABBITMQ_PORT"),
+        username: std::env::var("RABBITMQ_USERNAME")
+            .expect_or_log("RABBITMQ_USERNAME environment variable is not set"),
+        password: std::env::var("RABBITMQ_PASSWORD")
+            .expect_or_log("RABBITMQ_PASSWORD environment variable is not set"),
+    };
+
     let elasticsearch_url = std::env::var("ELASTICSEARCH_URL")
         .expect_or_log("ELASTICSEARCH_URL environment variable is not set");
     let elasticsearch_username = std::env::var("ELASTICSEARCH_USERNAME")
         .expect_or_log("ELASTICSEARCH_USERNAME environment variable is not set");
     let elasticsearch_password = std::env::var("ELASTICSEARCH_PASSWORD")
         .expect_or_log("ELASTICSEARCH_PASSWORD environment variable is not set");
-
-    let connection = Connection::open(&OpenConnectionArguments::new(
-        &rabbitmq_host,
-        rabbitmq_port,
-        &rabbitmq_username,
-        &rabbitmq_password,
-    ))
-    .await
-    .expect_or_log("Can't connect to RabbitMQ");
-    connection
-        .register_callback(DefaultConnectionCallback)
-        .await
-        .unwrap_or_log();
-
-    let channel = connection.open_channel(None).await.unwrap_or_log();
-    channel
-        .register_callback(DefaultChannelCallback)
-        .await
-        .unwrap_or_log();
-    RABBITMQ_CHANNEL.set(channel).map_err(|_| ()).unwrap();
-
-    let (queue_name, _, _) = RABBITMQ_CHANNEL
-        .get()
-        .unwrap()
-        .queue_declare(
-            QueueDeclareArguments::new(RABBITMQ_QUEUE_NAME)
-                .durable(true)
-                .finish(),
-        )
-        .await
-        .unwrap_or_log()
-        .unwrap_or_log();
 
     let es_url = Url::parse(&elasticsearch_url).unwrap_or_log();
     let es_conn_pool = SingleNodeConnectionPool::new(es_url);
@@ -150,24 +132,102 @@ async fn main() {
 
     initialize_models(&settings).expect_or_log("Can't initialize models");
 
-    let args = BasicConsumeArguments::new(&queue_name, "");
-    RABBITMQ_CHANNEL
-        .get()
-        .unwrap()
-        .basic_consume(Consumer, args)
-        .await
-        .unwrap();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let rabbitmq_task = tokio::spawn(async {
+        launch_rabbitmq_connection(rabbitmq_settings, shutdown_rx).await;
+    });
 
-    tracing::info!("Listening...");
-
-    let guard = tokio::sync::Notify::new();
-    guard.notified().await;
+    shutdown_signal().await;
+    shutdown_tx.send(()).unwrap();
+    rabbitmq_task.await.unwrap();
 }
 
 fn initialize_models(settings: &Settings) -> anyhow::Result<()> {
     clip_image::initialize_model(settings)?;
     clip_text::initialize_model(settings)?;
     Ok(())
+}
+
+async fn launch_rabbitmq_connection(
+    settings: RabbitMQSettings,
+    mut shutdown_rx: oneshot::Receiver<()>,
+) {
+    loop {
+        match connect_rabbitmq(&settings, &mut shutdown_rx).await {
+            Ok(_) => {
+                tracing::info!("RabbitMQ connection shut down normally");
+                break;
+            }
+            Err(err) => {
+                tracing::error!("RabbitMQ connection returned error: {err:?}");
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+            }
+        }
+    }
+}
+
+async fn connect_rabbitmq(
+    settings: &RabbitMQSettings,
+    shutdown_rx: &mut oneshot::Receiver<()>,
+) -> anyhow::Result<()> {
+    let connection = Connection::open(&OpenConnectionArguments::new(
+        &settings.host,
+        settings.port,
+        &settings.username,
+        &settings.password,
+    ))
+    .await?;
+    connection
+        .register_callback(DefaultConnectionCallback)
+        .await
+        .unwrap_or_log();
+
+    let channel = connection.open_channel(None).await.unwrap_or_log();
+    channel
+        .register_callback(DefaultChannelCallback)
+        .await
+        .unwrap_or_log();
+    *RABBITMQ_CHANNEL.write().await = Some(channel);
+
+    let (queue_name, _, _) = RABBITMQ_CHANNEL
+        .read()
+        .await
+        .as_ref()
+        .unwrap()
+        .queue_declare(
+            QueueDeclareArguments::new(RABBITMQ_QUEUE_NAME)
+                .durable(true)
+                .finish(),
+        )
+        .await
+        .unwrap_or_log()
+        .unwrap_or_log();
+
+    let args = BasicConsumeArguments::new(&queue_name, "");
+    RABBITMQ_CHANNEL
+        .read()
+        .await
+        .as_ref()
+        .unwrap()
+        .basic_consume(Consumer, args)
+        .await
+        .unwrap_or_log();
+
+    tracing::info!("Listening...");
+
+    tokio::select! {
+        _ = shutdown_rx => {
+            connection.close().await?;
+            Ok(())
+        }
+        result = connection.listen_network_io_failure() => {
+            if result {
+                Err(anyhow::anyhow!("connection failure"))
+            } else {
+                Err(anyhow::anyhow!("connection shut down without IO errors"))
+            }
+        }
+    }
 }
 
 struct Consumer;
@@ -207,4 +267,30 @@ impl AsyncConsumer for Consumer {
         }
         .unwrap_or_log();
     }
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect_or_log("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect_or_log("Failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::info!("Signal received, starting graceful shutdown");
 }

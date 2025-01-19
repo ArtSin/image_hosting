@@ -4,6 +4,7 @@ pub mod storage;
 
 pub const ELASTICSEARCH_INDEX: &str = "image_hosting";
 pub const RABBITMQ_QUEUE_NAME: &str = "image_hosting_queue";
+pub const RABBITMQ_CALLBACK_QUEUE_NAME: &str = "image_hosting_callback_queue";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorkerMessage {
